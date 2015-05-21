@@ -3,6 +3,9 @@
 *.dcu
 *.obj
 *.exe
+*.bpl
+*.bpi
+*.dcp
 *.rsm
 *.stat
 *.map
@@ -20,16 +23,20 @@
 *.tvsconfig
 *.otares
 *.drc
+*.rc
+*.res
 
 # Output Folders  #
 ###################
 /Win32
 /Win64
+/OSX32
 /__history
 /Tests/Win32
 /Tests/Win64
 /Test/__history
-
+Expert/__history
+Expert/Win32/
 
 
 # Testing Output  #
@@ -42,3 +49,6 @@ Examples/dunitx-results.xml
 *.fbpInf
 Examples/Win32/
 Examples/Win64/
+Examples/OSX32/
+
+

@@ -23,6 +23,40 @@
 {  limitations under the License.                                           }
 {                                                                           }
 {***************************************************************************}
+{                                                                           }
+{ Portions of the file also fall under the following license                }
+{ as they were taken from the DSharp Project                                }
+{ https://bitbucket.org/sglienke/dsharp                                     }
+{                                                                           }
+(*
+  Copyright (c) 2011-2012, Stefan Glienke
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+
+  - Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+  - Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation
+    and/or other materials provided with the distribution.
+  - Neither the name of this library nor the names of its contributors may be
+    used to endorse or promote products derived from this software without
+    specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  POSSIBILITY OF SUCH DAMAGE.
+*)
+
 
 unit DUnitX.Utils;
 
@@ -63,7 +97,12 @@ type
 type
   TStrUtils = class
     class function PadString(const s: string; const totalLength: integer; const padLeft: boolean = True; padChr: Char = ' '): string;
-    class function SplitString(const S, Delimiters: string): TStringDynArray;
+    class function SplitString(const S, Delimiters: string): TArray<string>;
+    class function Join(const values : TArray<string>; const delim : string) : string;overload;
+  end;
+
+  TListStringUtils = class
+    class function ToArray(const values : TList<string>) : TArray<string>;
   end;
 
 type
@@ -445,7 +484,7 @@ type
     function IsGenericTypeOf(const BaseTypeName: string): Boolean;
     function IsInheritedFrom(OtherType: TRttiType): Boolean; overload;
     function IsInheritedFrom(const OtherTypeName: string): Boolean; overload;
-    function MakeGenericType(TypeArguments: array of PTypeInfo): TRttiType;
+    function MakeGenericType(const TypeArguments: array of PTypeInfo): TRttiType;
 
     {$REGION 'Documentation'}
     ///	<summary>
@@ -610,7 +649,9 @@ type
     FPropInfo: TPropInfo;
     FGetter: TFunc<Pointer, TValue>;
     FSetter: TProc<Pointer, TValue>;
-    class var FRegister: TDictionary<TPair<PTypeInfo, string>, TRttiPropertyExtension>;
+    class var
+      FRegister: TDictionary<TPair<PTypeInfo, string>, TRttiPropertyExtension>;
+      FPatchedClasses: TDictionary<TClass, TClass>;
     function GetIsReadableStub: Boolean; //override;
     function GetIsWritableStub: Boolean; //override;
     function DoGetValueStub(Instance: Pointer): TValue; //override;
@@ -638,9 +679,11 @@ type
     property Setter: TProc<Pointer, TValue> read FSetter write FSetter;
   end;
 
+
   TArrayHelper = class
   public
     class function Concat<T>(const Arrays: array of TArray<T>): TArray<T>; static;
+    class function Create<T>(const a : T; const b : T) : TArray<T>;static;
 {$IF DELPHI_2010}
     class function ToArray<T>(Enumerable: TEnumerable<T>; Count: Integer): TArray<T>; static;
 {$IFEND}
@@ -691,8 +734,7 @@ uses
   Generics.Defaults,
   Math,
   StrUtils,
-  SysConst,
-  DUnitX.Detour;
+  SysConst;
 
 var
   Context: TRttiContext;
@@ -754,6 +796,19 @@ begin
   end;
 end;
 
+
+class function TStrUtils.Join(const values : TArray<string>; const delim: string): string;
+var
+  v : string;
+begin
+  result := '';
+  for v in values do
+  begin
+    if result <> '' then
+      result := result + delim;
+    result := result + v;
+  end;
+end;
 
 class function TStrUtils.PadString(const s: string; const totalLength: integer; const padLeft: boolean = True; padChr: Char = ' '): string;
 begin
@@ -1573,6 +1628,13 @@ begin
 end;
 {$IFEND}
 
+class function TArrayHelper.Create<T>(const a, b: T): TArray<T>;
+begin
+  SetLength(result,2);
+  result[0] := a;
+  result[0] := b;
+end;
+
 { TObjectHelper }
 
 function TObjectHelper.GetField(const AName: string): TRttiField;
@@ -1874,12 +1936,12 @@ begin
   begin
     if Length(Args) > 1 then
     begin
-      Result := Result + TValue.ToString(@Args[1]);
+      Result := Result + TValue.ToString(Args[1]);
     end;
   end
   else
   begin
-    Result := Result + TValue.ToString(@Args[0])
+    Result := Result + TValue.ToString(Args[0])
   end;
   Result := Result + ')';
 end;
@@ -2264,7 +2326,7 @@ begin
   end;
 end;
 
-function TRttiTypeHelper.MakeGenericType(TypeArguments: array of PTypeInfo): TRttiType;
+function TRttiTypeHelper.MakeGenericType(const TypeArguments: array of PTypeInfo): TRttiType;
 var
   i: Integer;
   args: TStringDynArray;
@@ -2860,13 +2922,24 @@ end;
 
 class constructor TRttiPropertyExtension.Create;
 begin
-  TRttiPropertyExtension.InitVirtualMethodTable;
-
   FRegister := TObjectDictionary<TPair<PTypeInfo, string>, TRttiPropertyExtension>.Create([doOwnsValues]);
+  FPatchedClasses := TDictionary<TClass, TClass>.Create;
+
+  TRttiPropertyExtension.InitVirtualMethodTable;
 end;
 
 class destructor TRttiPropertyExtension.Destroy;
+var
+  LClass: TClass;
+  LPointer: Pointer;
 begin
+  for LClass in FPatchedClasses.Values do
+  begin
+    LPointer := PByte(LClass) + vmtSelfPtr;
+    FreeMem(LPointer);
+  end;
+
+  FPatchedClasses.Free;
   FRegister.Free;
 end;
 
@@ -2878,6 +2951,8 @@ begin
   Init(GetRttiType(Parent), @FPropInfo);
 
   FRegister.Add(TPair<PTypeInfo, string>.Create(Parent, Name), Self);
+
+  PPointer(Self)^ := FPatchedClasses[Self.ClassType];
 end;
 
 function TRttiPropertyExtension.DoGetValue(Instance: Pointer): TValue;
@@ -2975,12 +3050,28 @@ begin
 end;
 
 class procedure TRttiPropertyExtension.InitVirtualMethodTable;
+const
+  MaxIndex = 17;  // TRttiInstanceProperty.GetPropInfo
+{$POINTERMATH ON}
+type
+  PVtable = ^Pointer;
+{$POINTERMATH OFF}
+var
+  LSize: Integer;
+  LData: Pointer;
+  LPatchedClass: TClass;
 begin
-  OverrideVirtualMethod(Self, 5, @TRttiPropertyExtension.GetIsReadableStub);
-  OverrideVirtualMethod(Self, 6, @TRttiPropertyExtension.GetIsWritableStub);
-  OverrideVirtualMethod(Self, 7, @TRttiPropertyExtension.DoGetValueStub);
-  OverrideVirtualMethod(Self, 8, @TRttiPropertyExtension.DoSetValueStub);
-  OverrideVirtualMethod(Self, 12, @TRttiPropertyExtension.GetPropInfoStub);
+  LSize := SizeOf(Pointer) * (1 + MaxIndex - (vmtSelfPtr div SizeOf(Pointer)));
+  LData := AllocMem(LSize);
+  LPatchedClass := TClass(PByte(LData) - vmtSelfPtr);
+  FPatchedClasses.Add(Self, LPatchedClass);
+  Move((PByte(Self) + vmtSelfPtr)^, LData^, LSize);
+
+  PVtable(LPatchedClass)[5] := @TRttiPropertyExtension.GetIsReadableStub;
+  PVtable(LPatchedClass)[6] := @TRttiPropertyExtension.GetIsWritableStub;
+  PVtable(LPatchedClass)[7] := @TRttiPropertyExtension.DoGetValueStub;
+  PVtable(LPatchedClass)[8] := @TRttiPropertyExtension.DoSetValueStub;
+  PVtable(LPatchedClass)[12] := @TRttiPropertyExtension.GetPropInfoStub;
 end;
 
 
@@ -2993,7 +3084,7 @@ end;
 {$ENDIF}
 
 
-class function TStrUtils.SplitString(const S, Delimiters: string): TStringDynArray;
+class function TStrUtils.SplitString(const S, Delimiters: string): TArray<string>;
 var
   StartIdx: Integer;
   FoundIdx: Integer;
@@ -3030,6 +3121,17 @@ begin
     Result[SplitPoints] := Copy(S, StartIdx, Length(S) - StartIdx + 1);
   end;
 
+end;
+
+{ TListStringUtils }
+
+class function TListStringUtils.ToArray(const values: TList<string>): TArray<string>;
+var
+  i : integer;
+begin
+  SetLength(result,values.Count);
+  for i := 0 to values.Count - 1 do
+    result[i] := values[i];
 end;
 
 initialization

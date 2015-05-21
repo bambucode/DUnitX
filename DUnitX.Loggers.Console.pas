@@ -65,6 +65,7 @@ type
 
     procedure OnExecuteTest(const threadId : Cardinal; const Test: ITestInfo);
 
+    procedure OnTestMemoryLeak(const threadId : Cardinal; const Test: ITestResult);
     procedure OnTestIgnored(const threadId: Cardinal;const  AIgnored: ITestResult);
     procedure OnTestError(const threadId: Cardinal; const Error: ITestError);
     procedure OnTestFailure(const threadId: Cardinal; const Failure: ITestError);
@@ -87,10 +88,10 @@ type
     destructor Destroy;override;
   end;
 
-
 implementation
 
 uses
+  DUnitX.AutoDetect.Console,
   DUnitX.IoC,
   SysUtils;
 
@@ -209,9 +210,9 @@ begin
   try
 
     case logType  of
-      ltInformation: SetConsoleDefaultColor();
-      ltWarning: SetConsoleWarningColor();
-      ltError: SetConsoleErrorColor();
+      TLogLevel.Information: SetConsoleDefaultColor();
+      TLogLevel.Warning: SetConsoleWarningColor();
+      TLogLevel.Error: SetConsoleErrorColor();
     end;
 
     FConsoleWriter.WriteLn(msg);
@@ -274,7 +275,9 @@ begin
     exit;
   end;
   FConsoleWriter.Indent(2);
+  SetConsolePassColor;
   FConsoleWriter.WriteLn('Success.');
+  SetConsoleDefaultColor;
   FConsoleWriter.Outdent(2);
 end;
 
@@ -329,6 +332,12 @@ begin
   else
     SetConsoleDefaultColor();
   FConsoleWriter.WriteLn(Format('Tests Passed  : %d',[RunResults.PassCount]));
+
+  if RunResults.MemoryLeakCount > 0 then
+    SetConsoleWarningColor()
+  else
+    SetConsoleDefaultColor();
+  FConsoleWriter.WriteLn(Format('Tests Leaked  : %d',[RunResults.MemoryLeakCount]));
 
   if RunResults.FailureCount > 0 then
     SetConsoleErrorColor()
@@ -388,6 +397,28 @@ begin
     FConsoleWriter.WriteLn;
   end;
 
+  if RunResults.MemoryLeakCount > 0  then
+  begin
+    SetConsoleWarningColor();
+    FConsoleWriter.WriteLn;
+    FConsoleWriter.WriteLn('Tests With Memory Leak');
+    FConsoleWriter.WriteLn;
+    SetConsoleDefaultColor();
+
+    for testResult in RunResults.GetAllTestResults do
+    begin
+      if testResult.ResultType = TTestResultType.MemoryLeak then
+      begin
+        SetConsoleWarningColor();
+        FConsoleWriter.WriteLn('  ' + testResult.Test.FullName);
+        SetConsoleDefaultColor();
+        FConsoleWriter.WriteLn('  Message: ' + testResult.Message);
+        FConsoleWriter.WriteLn;
+      end;
+    end;
+    FConsoleWriter.WriteLn;
+  end;
+
   SetConsoleDefaultColor();
 end;
 
@@ -399,22 +430,14 @@ begin
     FConsoleWriter.WriteLn;
     exit;
   end;
-
-  if TDUnitX.CommandLine.HideBanner then
-    exit;
-
-  SetConsoleSummaryColor();
-  FConsoleWriter.WriteLn('**********************************************************************');
-  FConsoleWriter.WriteLn('               DUnitX - (c) 2013 Vincent Parrett                      ');
-  FConsoleWriter.WriteLn('                     vincent@finalbuilder.com                         ');
-  FConsoleWriter.WriteLn('                                                                      ');
-  FConsoleWriter.WriteLn('         License - http://www.apache.org/licenses/LICENSE-2.0         ');
-  FConsoleWriter.WriteLn('**********************************************************************');
-  FConsoleWriter.WriteLn();
-  SetConsoleDefaultColor();
-  FConsoleWriter.Indent(1);
 end;
 
+
+procedure TDUnitXConsoleLogger.OnTestMemoryLeak(const threadId: Cardinal; const Test: ITestResult);
+begin
+  if FQuietMode then
+    FConsoleWriter.Write('M');
+end;
 
 procedure TDUnitXConsoleLogger.SetConsoleDefaultColor();
 begin

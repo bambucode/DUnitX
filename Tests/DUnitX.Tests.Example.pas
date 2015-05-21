@@ -35,9 +35,9 @@ uses
 type
   {$M+}
   [TestFixture('ExampleFixture1')]
+  [Category('examples')]
   TMyExampleTests = class
   public
-    [Test]
     //Run the same test with mulitiple parameters.
     //ideally we would like to implement this using
     //[TestCase('Case 1',[1,3,4])]
@@ -50,6 +50,7 @@ type
     //TODO: Add named params so that certain params can be passed and others are defaulted.
     //TODO: Add TestCase where the params are over and under the actually name to pass.
     //TODO: Make sure that each test case is passed and run only once, currently run multiple times. Actually its X*X times where X is the number of test cases in the fixture.
+    [Test]
     [TestCase('Case 1','1,2')]
     [TestCase('Case 2','3,4')]
     [TestCase('Case 3','5,6')]
@@ -59,7 +60,12 @@ type
     procedure AnotherTestMethod(const a : string; const b : integer);
 
     [Test]
+    [Category('Bar,foo')]
     procedure TestTwo;
+
+    [Test]
+    [Category('Bar,foo')]
+    procedure TestTwoOne;
 
     //Disabled test
     [Test(false)]
@@ -74,11 +80,14 @@ type
 
     [TearDown]
     procedure TearDown;
+
   published
+    [Category('blah')]
     procedure TestMeAnyway;
 
     [Ignore('I was told to ignore me anyway')]
     procedure IgnoreMeAnyway;
+
   end;
 
   [TestFixture]
@@ -90,6 +99,7 @@ type
     procedure SetupFixture;
     [Teardown]
     procedure TearDownFixture;
+    destructor Destroy;override;
   published
     procedure Published_Procedures_Are_Included_As_Tests;
   end;
@@ -151,17 +161,19 @@ end;
 procedure TMyExampleTests.AnotherTestMethod(const a: string; const b: integer);
 begin
   TDUnitX.CurrentRunner.Status(Format('TestCaseBlah called with %s %d',[a,b]));
+  Assert.Pass;
 end;
 
 procedure TMyExampleTests.TestMeAnyway;
 begin
   TDUnitX.CurrentRunner.Status('TestMeAnyway called');
-//  raise ENotImplemented.Create('I aint done');
+  Assert.Pass;
 end;
 
 procedure TMyExampleTests.TestOne(param1 : integer; param2 : integer);
 begin
   TDUnitX.CurrentRunner.Status(Format('TestOnce called with %d %d',[param1,param2]));
+  Assert.Pass;
 end;
 
 
@@ -174,9 +186,28 @@ begin
   //CheckIs(x,TObject); //DUnit compatibility.
   TDUnitX.CurrentRunner.Status('hello world');
   Assert.IsTrue(x is TObject); /// a bit pointless since it's strongly typed.
+  x.Free;
+end;
+
+procedure TMyExampleTests.TestTwoOne;
+var
+  x : TMyExampleTests;
+begin
+  TDUnitX.CurrentRunner.Status('TestTwo called');
+  x := TMyExampleTests.Create;
+  //CheckIs(x,TObject); //DUnit compatibility.
+  TDUnitX.CurrentRunner.Status('hello world');
+  Assert.IsTrue(x is TObject); /// a bit pointless since it's strongly typed.
+  x.Free;
 end;
 
 { TExampleFixture2 }
+
+destructor TExampleFixture2.Destroy;
+begin
+
+  inherited;
+end;
 
 procedure TExampleFixture2.Published_Procedures_Are_Included_As_Tests;
 begin
