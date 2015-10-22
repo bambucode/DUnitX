@@ -2,7 +2,7 @@
 {                                                                           }
 {           DUnitX                                                          }
 {                                                                           }
-{           Copyright (C) 2013 Vincent Parrett                              }
+{           Copyright (C) 2015 Vincent Parrett & Contributors               }
 {                                                                           }
 {           vincent@finalbuilder.com                                        }
 {           http://www.finalbuilder.com                                     }
@@ -28,14 +28,21 @@ unit DUnitX.TestResult;
 
 interface
 
+{$I DUnitX.inc}
+
+
 uses
+  {$IFDEF USE_NS}
+  System.SysUtils,
+  System.Timespan,
+  {$ELSE}
+  SysUtils,
   Timespan,
+  {$ENDIF}
   DUnitX.TestFramework,
   DUnitX.WeakReference,
-  DUnitX.InternalInterfaces,
-  SysUtils;
+  DUnitX.InternalInterfaces;
 
-{$I DUnitX.inc}
 
 type
   TDUnitXTestResult = class(TInterfacedObject, ITestResult)
@@ -153,7 +160,9 @@ begin
 
   FExceptionClass := ExceptClass(AThrownException.ClassType);
 
-  FExceptionMessage := AMessage + AThrownException.Message;
+  FExceptionMessage := AMessage;
+  if AMessage <> AThrownException.Message then
+    FExceptionMessage := FExceptionMessage + AThrownException.Message;
   FExceptionAddress := Addrs;
 
   {$IFDEF DELPHI_XE_UP}

@@ -2,7 +2,7 @@
 {                                                                           }
 {           DUnitX                                                          }
 {                                                                           }
-{           Copyright (C) 2013 Vincent Parrett                              }
+{           Copyright (C) 2015 Vincent Parrett & Contributors               }
 {                                                                           }
 {           vincent@finalbuilder.com                                        }
 {           http://www.finalbuilder.com                                     }
@@ -35,7 +35,11 @@ unit DUnitX.Types;
 interface
 
 uses
+{$IFDEF USE_NS}
+  System.Rtti;
+{$ELSE}
   Rtti;
+{$ENDIF}
 
 type
   {$IFDEF DELPHI_XE_UP}

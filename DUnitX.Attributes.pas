@@ -2,7 +2,7 @@
 {                                                                           }
 {           DUnitX                                                          }
 {                                                                           }
-{           Copyright (C) 2012 Vincent Parrett                              }
+{           Copyright (C) 2015 Vincent Parrett & Contributors               }
 {                                                                           }
 {           vincent@finalbuilder.com                                        }
 {           http://www.finalbuilder.com                                     }
@@ -28,11 +28,15 @@ unit DUnitX.Attributes;
 
 interface
 
-uses
-  DUnitX.Types,
-  Rtti;
-
 {$I DUnitX.inc}
+
+uses
+  {$IFDEF USE_NS}
+  System.Rtti,
+  {$ELSE}
+  Rtti,
+  {$ENDIF}
+  DUnitX.Types;
 
 type
   /// <summary>
@@ -109,7 +113,23 @@ type
     FIgnoreMemoryLeaks : Boolean;
   public
     constructor Create(const AIgnoreMemoryLeaks : Boolean = True);
-    property IgnoreMemoryLeaks : Boolean read FIgnoreMemoryLeaks;
+    property IgnoreLeaks : Boolean read FIgnoreMemoryLeaks;
+  end;
+
+  ///	<summary>
+  ///	  Marks a test method to fail after the time specified.
+  ///  Currently only support on Win32 & Win64
+  ///	</summary>
+  ///	<remarks>
+  ///	  If [MaxTime(1000]] used then the test will fail if the
+  ///   test takes longer than 1000ms
+  ///	</remarks>
+  MaxTimeAttribute = class(TCustomAttribute)
+  private
+    FMaxTime : Cardinal;
+  public
+    constructor Create(const AMaxTime : Cardinal);
+    property MaxTime : Cardinal read FMaxTime;
   end;
 
   /// <summary>
@@ -184,7 +204,7 @@ type
     Values : TValueArray;
   end;
 
-  TestCaseInfoArray = array of TestCaseInfo;
+  TestCaseInfoArray = TArray<TestCaseInfo>;
 
   /// <summary>
   ///   Base class for all Test Case Attributes.   
@@ -242,9 +262,14 @@ type
 implementation
 
 uses
+  {$IFDEF USE_NS}
+  System.Types,
+  System.StrUtils,
+  {$ELSE}
+  Types,
   StrUtils,
-  DUnitX.Utils,
-  Types;
+  {$ENDIF}
+  DUnitX.Utils;
 
 { TestFixture }
 
@@ -333,6 +358,13 @@ end;
 function TestCaseAttribute.GetValues: TValueArray;
 begin
   Result := FCaseInfo.Values;
+end;
+
+{ MaxTimeAttribute }
+
+constructor MaxTimeAttribute.Create(const AMaxTime : Cardinal);
+begin
+  FMaxTime := AMaxTime;
 end;
 
 end.

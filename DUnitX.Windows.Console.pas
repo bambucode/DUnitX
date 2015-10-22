@@ -2,7 +2,7 @@
 {                                                                           }
 {           DUnitX                                                          }
 {                                                                           }
-{           Copyright (C) 2013 Vincent Parrett                              }
+{           Copyright (C) 2015 Vincent Parrett & Contributors               }
 {                                                                           }
 {           vincent@finalbuilder.com                                        }
 {           http://www.finalbuilder.com                                     }
@@ -28,11 +28,20 @@ unit DUnitX.Windows.Console;
 
 interface
 
+{$I DUnitX.inc}
+
+{$IFNDEF MSWINDOWS}
+ This unit should not ne included in your project, it works on windows only
+{$ENDIF}
+
 uses
-  classes,
+  {$IFDEF USE_NS}
+  System.Classes,
+  {$ELSE}
+  Classes,
+  {$ENDIF}
   DUnitX.ConsoleWriter.Base;
 
-{$I DUnitX.inc}
 
 type
   TDUnitXWindowsConsoleWriter = class(TDUnitXConsoleWriterBase)
@@ -57,13 +66,13 @@ type
 implementation
 
 uses
-  {$IFDEF MSWINDOWS}
-    {$if CompilerVersion < 23 }
-      Windows,
-    {$else}
-      WinAPI.Windows, // Delphi XE2 (CompilerVersion 23) added scopes in front of unit names
-    {$ifend}
+{$IFDEF MSWINDOWS}
+  {$IFDEF USE_NS}
+    WinAPI.Windows, // Delphi XE2 (CompilerVersion 23) added scopes in front of unit names
+  {$ELSE}
+    Windows,
   {$ENDIF}
+{$ENDIF}
   DUnitX.Utils,
   DUnitX.IoC;
 

@@ -2,7 +2,7 @@
 {                                                                           }
 {           DUnitX                                                          }
 {                                                                           }
-{           Copyright (C) 2013 Vincent Parrett                              }
+{           Copyright (C) 2015 Vincent Parrett & Contributors               }
 {                                                                           }
 {           vincent@finalbuilder.com                                        }
 {           http://www.finalbuilder.com                                     }
@@ -28,18 +28,23 @@ unit DUnitX.Test;
 
 interface
 
+{$I DUnitX.inc}
+
 uses
+  {$IFDEF USE_NS}
+  System.Generics.Collections,
+  System.TimeSpan,
+  System.Rtti,
+  {$ELSE}
+  Generics.Collections,
+  TimeSpan,
+  Rtti,
+  {$ENDIF}
   DUnitX.Types,
   DUnitX.Extensibility,
   DUnitX.InternalInterfaces,
   DUnitX.WeakReference,
-  DUnitX.TestFramework,
-  Generics.Collections,
-  TimeSpan,
-  Rtti;
-
-{$I DUnitX.inc}
-
+  DUnitX.TestFramework;
 
 type
   TDUnitXTest = class(TWeakReferencedObject, ITest, ITestInfo, ISetTestResult, ITestExecute)
@@ -56,6 +61,8 @@ type
     FIgnored      : boolean;
     FIgnoreReason : string;
     FIgnoreMemoryLeaks : Boolean;
+    FMaxTime      : cardinal; // milliseconds for timeout
+    FTimedOut     : Boolean;
   protected
     //ITest
     function GetName: string; virtual;
@@ -69,6 +76,10 @@ type
     function GetTestDuration: TTimeSpan;
     function GetIgnoreMemoryLeaks() : Boolean;
     procedure SetIgnoreMemoryLeaks(const AValue : Boolean);
+    function GetMaxTime: cardinal;
+    procedure SetMaxTime(const AValue: cardinal);
+    function GetTimedOut: Boolean;
+    procedure SetTimedOut(const AValue: Boolean);
 
     //ITestInfo
     function GetActive : boolean;
@@ -84,9 +95,10 @@ type
 
     //ITestExecute
     procedure Execute(const context : ITestExecuteContext);virtual;
+    procedure UpdateInstance(const fixtureInstance : TObject);virtual;
   public
     constructor Create(const AFixture : ITestFixture; const AMethodName : string; const AName : string; const ACategory  : string; const AMethod : TTestMethod; const AEnabled : boolean;
-                       const AIgnored : boolean = false; const AIgnoreReason : string = '');
+                       const AIgnored : boolean = false; const AIgnoreReason : string = ''; const AMaxTime : Cardinal = 0);
     destructor Destroy;override;
   end;
 
@@ -99,6 +111,7 @@ type
   protected
     function GetName: string; override;
     procedure Execute(const context : ITestExecuteContext); override;
+    procedure UpdateInstance(const fixtureInstance : TObject);override;
   public
     constructor Create(const AInstance : TObject; const AFixture : ITestFixture; const AMethodName : string; const ACaseName : string; const AName : string; const ACategory  : string; const AMethod : TRttiMethod;
                        const AEnabled : boolean; const AArgs : TValueArray);reintroduce;
@@ -109,13 +122,21 @@ type
 implementation
 
 uses
+  {$IFDEF USE_NS}
+  System.SysUtils,
+  System.Generics.Defaults,
+  {$ELSE}
   SysUtils,
   Generics.Defaults,
+  {$ENDIF}
+  {$IFDEF MSWINDOWS}
+  DUnitX.Timeout,
+  {$ENDIF}
   DUnitX.Utils;
 
 { TDUnitXTest }
 
-constructor TDUnitXTest.Create(const AFixture: ITestFixture; const AMethodName : string; const AName: string; const ACategory  : string; const AMethod: TTestMethod; const AEnabled : boolean; const AIgnored : boolean; const AIgnoreReason : string);
+constructor TDUnitXTest.Create(const AFixture: ITestFixture; const AMethodName : string; const AName: string; const ACategory  : string; const AMethod: TTestMethod; const AEnabled : boolean; const AIgnored : boolean; const AIgnoreReason : string; const AMaxTime : Cardinal);
 var
   categories : TArray<string>;
   cat        : string;
@@ -141,6 +162,8 @@ begin
   FEnabled := AEnabled;
   FIgnored := AIgnored;
   FIgnoreReason := AIgnoreReason;
+  FMaxTime := AMaxTime;
+  FTimedOut := false;
 end;
 
 destructor TDUnitXTest.Destroy;
@@ -150,9 +173,17 @@ begin
 end;
 
 procedure TDUnitXTest.Execute(const context : ITestExecuteContext);
+{$IFDEF MSWINDOWS}
+var
+  timeout : ITimeout;
+{$ENDIF}
 begin
   FStartTime := Now();
   try
+    {$IFDEF MSWINDOWS}
+    if FMaxTime > 0 then
+      timeout := InitialiseTimeOut( FMaxTime );
+    {$ENDIF}
     FMethod();
   finally
     FEndTime := Now();
@@ -254,6 +285,29 @@ begin
   FIgnoreMemoryLeaks := AValue;
 end;
 
+function TDUnitXTest.GetMaxTime: cardinal;
+begin
+  Result := FMaxTime;
+end;
+procedure TDUnitXTest.SetMaxTime(const AValue: cardinal);
+begin
+  FMaxTime := AValue;
+end;
+
+function TDUnitXTest.GetTimedOut: Boolean;
+begin
+  Result := FTimedOut;
+end;
+procedure TDUnitXTest.SetTimedOut(const AValue: Boolean);
+begin
+  FTimedOut := AValue;
+end;
+
+procedure TDUnitXTest.UpdateInstance(const fixtureInstance: TObject);
+begin
+  TMethod(FMethod).Data := fixtureInstance;
+end;
+
 procedure TDUnitXTest.SetResult(const value: ITestResult);
 begin
 
@@ -282,7 +336,7 @@ begin
 
   if len > 0 then
   begin
-    //Only keep as many arguements as there are params
+    //Only keep as many arguments as there are params
     SetLength(FArgs, len);
     for index := 0 to Pred(len) do
     begin
@@ -315,6 +369,12 @@ end;
 function TDUnitXTestCase.GetName: string;
 begin
   Result := FName + '.' + FCaseName;
+end;
+
+procedure TDUnitXTestCase.UpdateInstance(const fixtureInstance: TObject);
+begin
+  inherited;
+  FInstance := fixtureInstance;
 end;
 
 end.

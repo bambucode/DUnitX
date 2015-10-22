@@ -62,7 +62,11 @@ uses
   DUnitX.Tests.Inheritance in 'DUnitX.Tests.Inheritance.pas',
   DUnitX.Tests.ConsoleWriter.Base in 'DUnitX.Tests.ConsoleWriter.Base.pas',
   DUnitX.Assert in '..\DUnitX.Assert.pas',
-  DUnitX.Types in '..\DUnitX.Types.pas';
+  DUnitX.Types in '..\DUnitX.Types.pas',
+  DUnitX.Timeout in '..\DUnitX.Timeout.pas',
+  DUnitX.ResStrs in '..\DUnitX.ResStrs.pas',
+  DUnitX.Constants in '..\DUnitX.Constants.pas',
+  DUnitX.Attributes in '..\DUnitX.Attributes.pas';
 
 var
   runner : ITestRunner;
